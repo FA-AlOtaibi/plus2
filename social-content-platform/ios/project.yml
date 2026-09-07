@@ -6,7 +6,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: 5.0
-    PRODUCT_NAME: "سرد"
+    PRODUCT_NAME: SocialStudio
 targets:
   SocialStudio:
     type: application

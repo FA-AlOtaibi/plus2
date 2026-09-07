@@ -1,0 +1,38 @@
+name: Build Native Social Studio IPA
+on:
+  push:
+    branches: [social-studio]
+    paths:
+      - 'social-content-platform/ios/**'
+      - '.github/workflows/build-social-studio-ios.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        working-directory: social-content-platform/ios
+        run: xcodegen generate
+      - name: Build unsigned device app
+        working-directory: social-content-platform/ios
+        run: |
+          set -o pipefail
+          xcodebuild -project SocialStudio.xcodeproj -scheme SocialStudio -configuration Release -sdk iphoneos -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO | xcpretty
+      - name: Package IPA
+        working-directory: social-content-platform/ios
+        run: |
+          APP=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$APP"
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry SocialStudio-native-unsigned.ipa Payload
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: SocialStudio-native-IPA
+          path: social-content-platform/ios/SocialStudio-native-unsigned.ipa
+          retention-days: 30

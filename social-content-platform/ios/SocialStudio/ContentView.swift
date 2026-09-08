@@ -5,105 +5,244 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showHistory = false
     @State private var showShare = false
-    @State private var publishTarget = "x"
+    @State private var showPublishMenu = false
+    @FocusState private var focused: Bool
 
-    private let cream = Color(red: 0.953, green: 0.941, blue: 0.906)
-    private let ink = Color(red: 0.09, green: 0.09, blue: 0.075)
-    private let green = Color(red: 0.153, green: 0.365, blue: 0.29)
+    private let paper = Color(red: 0.965, green: 0.958, blue: 0.935)
+    private let ink = Color(red: 0.075, green: 0.075, blue: 0.07)
+    private let accent = Color(red: 0.91, green: 0.36, blue: 0.23)
+    private let moss = Color(red: 0.17, green: 0.29, blue: 0.22)
 
     var body: some View {
         NavigationStack {
             ZStack {
-                cream.ignoresSafeArea()
+                paper.ignoresSafeArea()
                 ScrollView {
-                    VStack(alignment: .trailing, spacing: 22) {
+                    VStack(spacing: 0) {
                         header
-                        hero
-                        options
-                        composer
-                        output
-                    }.padding(18)
+                        intro
+                        studioCard
+                        if !vm.result.isEmpty || !vm.error.isEmpty { resultCard.padding(.top, 14) }
+                        Spacer(minLength: 40)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
                 }
+                .scrollDismissesKeyboard(.interactively)
             }
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showSettings) { SettingsView(vm: vm) }
             .sheet(isPresented: $showHistory) { HistoryView(vm: vm) }
             .sheet(isPresented: $showShare) { ShareSheet(items: [vm.result]) }
+            .confirmationDialog("وين تبي تنشر؟", isPresented: $showPublishMenu, titleVisibility: .visible) {
+                Button("X") { publish(to: "x") }
+                Button("واتساب") { publish(to: "whatsapp") }
+                Button("تيليجرام") { publish(to: "telegram") }
+                Button("مشاركة عبر iOS") { showShare = true }
+                Button("إلغاء", role: .cancel) {}
+            }
         }
+        .tint(accent)
     }
 
     private var header: some View {
-        HStack {
-            Button { showSettings = true } label: { Image(systemName: "slider.horizontal.3").frame(width: 42, height: 42).background(.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 12)) }
-            Button { showHistory = true } label: { Image(systemName: "clock.arrow.circlepath").frame(width: 42, height: 42).background(.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 12)) }
+        HStack(spacing: 10) {
+            Button { showHistory = true } label: { iconButton("clock.arrow.circlepath") }
+            Button { showSettings = true } label: { iconButton("slider.horizontal.3") }
             Spacer()
-            VStack(alignment: .trailing, spacing: 2) { Text("سرد").font(.title2.bold()); Text("استوديو المحتوى العربي").font(.caption).foregroundStyle(.secondary) }
-            Text("س").font(.title2.bold()).foregroundStyle(.white).frame(width: 44, height: 44).background(ink, in: RoundedRectangle(cornerRadius: 12))
-        }.foregroundStyle(ink)
+            VStack(alignment: .trailing, spacing: 1) {
+                Text("سرد").font(.system(size: 25, weight: .black, design: .rounded))
+                Text("فكرتك، بصوت أفضل").font(.caption).foregroundStyle(.secondary)
+            }
+            ZStack {
+                RoundedRectangle(cornerRadius: 13).fill(ink)
+                Text("س").font(.title2.black()).foregroundStyle(paper)
+            }.frame(width: 46, height: 46)
+        }
+        .foregroundStyle(ink)
+        .padding(.vertical, 8)
     }
 
-    private var hero: some View {
-        VStack(alignment: .trailing, spacing: 10) {
-            Text("محتوى عربي لا يبدو آلياً").font(.caption.bold()).foregroundStyle(green)
-            Text("حوّل الفكرة إلى منشور\nيستحق النشر.").font(.system(size: 37, weight: .bold, design: .rounded)).frame(maxWidth: .infinity, alignment: .trailing)
-            Text("اكتب الفكرة، اختر المنصة، وسنفتح لك شاشة النشر مباشرة بعد تجهيز النص.").font(.subheadline).foregroundStyle(.secondary).lineSpacing(5)
+    private func iconButton(_ name: String) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 16, weight: .semibold))
+            .frame(width: 40, height: 40)
+            .background(Color.white.opacity(0.75), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.black.opacity(0.06)))
+    }
+
+    private var intro: some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            Text("لا نكرر فكرتك. نبني عليها.")
+                .font(.system(size: 32, weight: .black, design: .rounded))
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            Text("اكتبها مثل ما هي في بالك؛ سرد يستنبط الزاوية والفائدة والإيقاع، ثم يعطيك نصاً تقدر تعدله أو تنشره إذا رغبت.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineSpacing(4)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .padding(.vertical, 16)
+    }
+
+    private var studioCard: some View {
+        VStack(spacing: 16) {
+            VStack(alignment: .trailing, spacing: 8) {
+                HStack {
+                    Text("اكتب الفكرة").font(.headline)
+                    Spacer()
+                    Text("01").font(.caption2.bold()).foregroundStyle(accent)
+                }
+                ZStack(alignment: .topTrailing) {
+                    RoundedRectangle(cornerRadius: 18).fill(Color.white.opacity(0.78))
+                    TextEditor(text: $vm.topic)
+                        .focused($focused)
+                        .scrollContentBackground(.hidden)
+                        .font(.system(size: 21, weight: .medium))
+                        .lineSpacing(5)
+                        .padding(14)
+                        .frame(minHeight: 170)
+                    if vm.topic.isEmpty {
+                        Text("مثال: تطبيق يأخذ فكرتي الخام ويحوّلها إلى نص جميل له معنى وشخصية…")
+                            .foregroundStyle(.tertiary)
+                            .padding(20)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.black.opacity(0.07)))
+            }
+
+            controls
+
+            Button {
+                focused = false
+                Task { await vm.generate() }
+            } label: {
+                HStack(spacing: 10) {
+                    if vm.isLoading { ProgressView().tint(.white) }
+                    Image(systemName: "sparkles")
+                    Text(vm.isLoading ? "جالس أصيغها…" : "اسردها")
+                        .fontWeight(.bold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 15)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white)
+            .background(vm.topic.trimmingCharacters(in: .whitespacesAndNewlines).count < 3 ? Color.gray : ink, in: RoundedRectangle(cornerRadius: 15))
+            .disabled(vm.topic.trimmingCharacters(in: .whitespacesAndNewlines).count < 3 || vm.isLoading)
+        }
+        .padding(16)
+        .background(Color.white.opacity(0.48), in: RoundedRectangle(cornerRadius: 26))
+        .overlay(RoundedRectangle(cornerRadius: 26).stroke(Color.black.opacity(0.055)))
+    }
+
+    private var controls: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                menuChip(title: contentLabel, icon: "doc.text", menu: {
+                    Button("تغريدة") { vm.contentType = "tweets" }
+                    Button("ثريد") { vm.contentType = "thread" }
+                    Button("كابشن") { vm.contentType = "caption" }
+                    Button("لينكدإن") { vm.contentType = "linkedin" }
+                    Button("إعلان") { vm.contentType = "ad" }
+                })
+                menuChip(title: dialectLabel, icon: "quote.bubble", menu: {
+                    Button("خليجية") { vm.dialect = "gulf" }
+                    Button("فصحى") { vm.dialect = "msa" }
+                    Button("مصرية") { vm.dialect = "egyptian" }
+                    Button("شامية") { vm.dialect = "levantine" }
+                })
+                menuChip(title: toneLabel, icon: "waveform", menu: {
+                    Button("ودودة") { vm.tone = "friendly" }
+                    Button("رسمية") { vm.tone = "formal" }
+                    Button("جريئة") { vm.tone = "bold" }
+                    Button("فكاهية") { vm.tone = "funny" }
+                    Button("ملهمة") { vm.tone = "inspiring" }
+                })
+            }
         }
     }
 
-    private var options: some View {
-        VStack(spacing: 14) {
-            Picker("النوع", selection: $vm.contentType) { Text("تغريدات").tag("tweets"); Text("ثريد").tag("thread"); Text("كابشن").tag("caption"); Text("لينكدإن").tag("linkedin"); Text("إعلان").tag("ad") }.pickerStyle(.segmented)
-            HStack {
-                Picker("النبرة", selection: $vm.tone) { Text("ودودة").tag("friendly"); Text("رسمية").tag("formal"); Text("جريئة").tag("bold"); Text("فكاهية").tag("funny"); Text("ملهمة").tag("inspiring") }.pickerStyle(.menu)
-                Spacer()
-                Picker("اللهجة", selection: $vm.dialect) { Text("خليجية").tag("gulf"); Text("فصحى").tag("msa"); Text("مصرية").tag("egyptian"); Text("شامية").tag("levantine") }.pickerStyle(.menu)
-            }.padding(.horizontal, 4)
-            Divider()
-            HStack {
-                Text("النشر إلى").font(.caption.bold()).foregroundStyle(.secondary)
-                Spacer()
-                Picker("المنصة", selection: $publishTarget) {
-                    Text("X").tag("x")
-                    Text("واتساب").tag("whatsapp")
-                    Text("تيليجرام").tag("telegram")
-                    Text("أخرى").tag("share")
-                }.pickerStyle(.menu)
+    private func menuChip(title: String, icon: String, @ViewBuilder menu: () -> some View) -> some View {
+        Menu(content: menu) {
+            HStack(spacing: 6) {
+                Image(systemName: icon).font(.caption)
+                Text(title).font(.caption.bold()).lineLimit(1)
+                Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
             }
-        }.padding(16).background(.white.opacity(0.78), in: RoundedRectangle(cornerRadius: 18))
+            .foregroundStyle(ink)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
+            .background(Color.white.opacity(0.82), in: Capsule())
+            .overlay(Capsule().stroke(Color.black.opacity(0.06)))
+        }
+        .frame(maxWidth: .infinity)
     }
 
-    private var composer: some View {
-        VStack(alignment: .trailing, spacing: 12) {
-            HStack { Text("01").font(.caption2.bold()).foregroundStyle(green); Text("الفكرة").font(.subheadline.bold()); Spacer() }
-            TextEditor(text: $vm.topic).scrollContentBackground(.hidden).frame(minHeight: 155).font(.title3).overlay(alignment: .topTrailing) { if vm.topic.isEmpty { Text("اكتب موضوع المنشور أو الكلمات المفتاحية هنا…").foregroundStyle(.tertiary).padding(.top, 8).allowsHitTesting(false) } }
-            Divider()
-            Button {
-                Task {
-                    await vm.generate()
-                    if vm.error.isEmpty && !vm.result.isEmpty { openPublishTarget(vm.result) }
-                }
-            } label: {
-                HStack { if vm.isLoading { ProgressView().tint(.white) }; Text(vm.isLoading ? "جاري الصياغة…" : "ولّد وانشر").fontWeight(.bold) }.frame(maxWidth: .infinity).padding(.vertical, 14)
-            }.buttonStyle(.plain).foregroundStyle(.white).background(green, in: RoundedRectangle(cornerRadius: 13)).disabled(vm.topic.trimmingCharacters(in: .whitespacesAndNewlines).count < 3 || vm.isLoading).opacity(vm.topic.trimmingCharacters(in: .whitespacesAndNewlines).count < 3 ? 0.45 : 1)
-        }.padding(18).background(.white.opacity(0.78), in: RoundedRectangle(cornerRadius: 18))
-    }
-
-    @ViewBuilder private var output: some View {
+    private var resultCard: some View {
         VStack(alignment: .trailing, spacing: 14) {
-            HStack { Text("02").font(.caption2.bold()).foregroundStyle(green); Text("معاينة المنشور").font(.subheadline.bold()); Spacer(); if !vm.result.isEmpty { Button { openPublishTarget(vm.result) } label: { Label("فتح المنصة", systemImage: "paperplane.fill") }.font(.caption.bold()).foregroundStyle(.white).padding(.horizontal, 12).padding(.vertical, 8).background(green, in: Capsule()) } }
-            if !vm.error.isEmpty { Text(vm.error).foregroundStyle(.red).frame(maxWidth: .infinity, alignment: .trailing) }
-            if vm.result.isEmpty && vm.error.isEmpty && !vm.isLoading { VStack(spacing: 8) { Image(systemName: "sparkles").font(.largeTitle).foregroundStyle(green); Text("اكتب فكرتك واختر المنصة").font(.headline); Text("بعد التوليد سنفتح منصة النشر المحددة تلقائياً.").font(.caption).foregroundStyle(.secondary) }.frame(maxWidth: .infinity).padding(.vertical, 36) }
-            if !vm.result.isEmpty { Text(vm.result).font(.body).lineSpacing(8).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .trailing); Divider(); Button { openPublishTarget(vm.result) } label: { Label("افتح منصة النشر المحددة", systemImage: "paperplane.fill").fontWeight(.bold).frame(maxWidth: .infinity).padding(.vertical, 13) }.buttonStyle(.plain).foregroundStyle(.white).background(green, in: RoundedRectangle(cornerRadius: 13)); Text("المحرّك: \(vm.provider)").font(.caption2).foregroundStyle(.secondary) }
-        }.padding(18).background(Color(red:0.975,green:0.961,blue:0.925), in: RoundedRectangle(cornerRadius: 18))
+            HStack {
+                Text("النص").font(.headline)
+                Text("02").font(.caption2.bold()).foregroundStyle(accent)
+                Spacer()
+                if !vm.result.isEmpty {
+                    Text(vm.provider).font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+
+            if !vm.error.isEmpty {
+                Text(vm.error).foregroundStyle(.red).frame(maxWidth: .infinity, alignment: .trailing)
+            }
+
+            if !vm.result.isEmpty {
+                TextEditor(text: $vm.result)
+                    .scrollContentBackground(.hidden)
+                    .font(.system(size: 19, weight: .regular))
+                    .lineSpacing(7)
+                    .frame(minHeight: 260)
+                    .padding(12)
+                    .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 18))
+                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.black.opacity(0.06)))
+
+                HStack(spacing: 10) {
+                    Button { UIPasteboard.general.string = vm.result } label: {
+                        Label("نسخ", systemImage: "doc.on.doc")
+                    }
+                    .buttonStyle(ActionPillStyle(background: Color.white, foreground: ink))
+
+                    Button { Task { await vm.regenerate() } } label: {
+                        Label("صياغة ثانية", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .buttonStyle(ActionPillStyle(background: Color.white, foreground: ink))
+
+                    Button { showPublishMenu = true } label: {
+                        Label("نشر", systemImage: "paperplane.fill")
+                    }
+                    .buttonStyle(ActionPillStyle(background: accent, foreground: .white))
+                }
+            }
+        }
+        .padding(16)
+        .background(moss.opacity(0.07), in: RoundedRectangle(cornerRadius: 26))
+        .overlay(RoundedRectangle(cornerRadius: 26).stroke(moss.opacity(0.12)))
     }
 
-    private func openPublishTarget(_ text: String) {
-        let encoded = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        if publishTarget == "share" { showShare = true; return }
+    private var contentLabel: String {
+        ["tweets":"تغريدة","thread":"ثريد","caption":"كابشن","linkedin":"لينكدإن","ad":"إعلان"][vm.contentType] ?? "تغريدة"
+    }
+    private var dialectLabel: String {
+        ["gulf":"خليجية","msa":"فصحى","egyptian":"مصرية","levantine":"شامية"][vm.dialect] ?? "خليجية"
+    }
+    private var toneLabel: String {
+        ["friendly":"ودودة","formal":"رسمية","bold":"جريئة","funny":"فكاهية","inspiring":"ملهمة"][vm.tone] ?? "ودودة"
+    }
 
+    private func publish(to target: String) {
+        let encoded = vm.result.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let primary: String
         let fallback: String
-        switch publishTarget {
+        switch target {
         case "whatsapp":
             primary = "whatsapp://send?text=\(encoded)"
             fallback = "https://wa.me/?text=\(encoded)"
@@ -114,12 +253,23 @@ struct ContentView: View {
             primary = "twitter://post?message=\(encoded)"
             fallback = "https://twitter.com/intent/tweet?text=\(encoded)"
         }
-
-        guard let primaryURL = URL(string: primary) else { showShare = true; return }
-        UIApplication.shared.open(primaryURL, options: [:]) { opened in
-            if !opened, let fallbackURL = URL(string: fallback) {
-                UIApplication.shared.open(fallbackURL)
-            }
+        guard let url = URL(string: primary) else { showShare = true; return }
+        UIApplication.shared.open(url, options: [:]) { opened in
+            if !opened, let fallbackURL = URL(string: fallback) { UIApplication.shared.open(fallbackURL) }
         }
+    }
+}
+
+private struct ActionPillStyle: ButtonStyle {
+    let background: Color
+    let foreground: Color
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.caption.bold())
+            .foregroundStyle(foreground)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(background.opacity(configuration.isPressed ? 0.7 : 1), in: Capsule())
+            .overlay(Capsule().stroke(Color.black.opacity(background == Color.white ? 0.06 : 0)))
     }
 }

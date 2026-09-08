@@ -9,62 +9,101 @@ struct HistoryItem: Identifiable, Codable {
 }
 
 private enum CreativeWriter {
-    static func compose(topic: String, type: String, dialect: String, tone: String) -> String {
+    static func compose(topic: String, type: String, dialect: String, tone: String, variant: Int) -> String {
         let clean = topic.trimmingCharacters(in: .whitespacesAndNewlines)
         let lower = clean.lowercased()
+
         let isApp = lower.contains("تطبيق") || lower.contains("موقع") || lower.contains("منصة")
-        let isWriting = lower.contains("فكرة") || lower.contains("سرد") || lower.contains("كتابة") || lower.contains("محتوى")
-        let isFood = lower.contains("مطعم") || lower.contains("قهوة") || lower.contains("برجر") || lower.contains("أكل")
-        let isProduct = lower.contains("منتج") || lower.contains("متجر") || lower.contains("خدمة")
+        let isWriting = lower.contains("فكرة") || lower.contains("سرد") || lower.contains("كتابة") || lower.contains("محتوى") || lower.contains("صياغ")
+        let isOffer = lower.contains("ريال") || lower.contains("مجاني") || lower.contains("توصيل") || lower.contains("عرض") || lower.contains("خصم") || lower.contains("هدية") || lower.contains("كيلو") || lower.contains("علبة") || lower.contains("اطلب")
 
-        let hook: String
-        let middle: String
-        let close: String
+        var text: String
 
-        if isApp && isWriting {
-            hook = "مو كل فكرة تحتاج كاتب… أحياناً تحتاج أحد يعرف يلقط معناها ويعطيها صوتها الصحيح."
-            middle = "هذا بالضبط اللي تحاول تسويه فكرتك: تبدأ من الكلام الخام كما هو في بالك، ثم ترتبه وتوسّعه وتستخرج منه الزاوية الأقوى، بدون ما تضيع النبرة أو يتحول النص إلى كلام محفوظ. بدل صفحة بيضاء، يصير عندك مسودة تعرف وش تقول، ولمين تقولها، وكيف تخليها أسهل في القراءة وأقوى في الأثر."
-            close = "الفكرة الأصلية: \(clean)\nوالقيمة الحقيقية فيها إن المستخدم ما يبحث عن كلمات أكثر؛ يبحث عن صياغة أفضل لنفس فكرته."
-        } else if isFood {
-            hook = "الفرق مو في إنك تقدم شيء يؤكل… الفرق في التجربة اللي تخلي الناس تتذكره وترجع له."
-            middle = "من وصفك، الفكرة تقدر تُبنى حول الإحساس قبل المنتج: لحظة الطلب، التفاصيل الصغيرة، والطابع اللي يخلي المكان أو الطبق له شخصية بدل ما يكون نسخة من غيره."
-            close = "\(clean)\nخل الرسالة تبيع الشعور قبل ما تبيع الصنف."
-        } else if isProduct {
-            hook = "المنتج الجيد يحل حاجة، لكن المنتج اللي يعلق في الذهن يشرح فائدته قبل ما يضطر يشرح نفسه."
-            middle = "الفكرة هنا قابلة للتحويل إلى رسالة أوضح: ما الذي تختصره على المستخدم؟ ما الذي تجعله أسهل؟ ولماذا سيختارك بدل البدائل؟ هذه الزوايا هي اللي تحول الوصف من قائمة مزايا إلى قصة مفهومة."
-            close = "\(clean)\nابدأ بالقيمة، ثم خل التفاصيل تخدمها."
+        if isOffer {
+            text = offerCopy(from: clean, variant: variant)
+        } else if isApp && isWriting {
+            let variants = [
+                "الفكرة مو إنك تعطي الذكاء الاصطناعي جملة ويرجعها لك بكلمات أفخم. الفكرة إنك ترمي له الكلام مثل ما هو في رأسك، وهو يلقط المقصد، يستخرج الزاوية، ويحوّلها إلى نص له بداية وصوت ونهاية.\n\nيعني بدل ما تبدأ من صفحة بيضاء، تبدأ من شيء يشبهك أنت — لكن مرتب، أوضح، وأقوى. وبعدها أنت تقرر: تعدّل، تحفظ، أو تنشر.\n\nهذا الفرق بين أداة «تعيد الصياغة» وأداة فعلاً تفهم وش كنت تحاول تقول.",
+                "أحياناً الفكرة تكون واضحة في رأسك… لكن أول ما تحاول تكتبها تصير أضعف مما تخيلتها.\n\nهنا يجي دور التطبيق: تكتب الفكرة الخام بدون ترتيب وبدون ما تهتم بالصياغة، وهو يبني منها الرسالة، يختار الزاوية المناسبة، ويضيف التفاصيل اللي تخلي النص متماسكاً بدل ما يكون مجرد إعادة لكلامك.\n\nالفكرة تظل فكرتك. اللي يتغير هو طريقة وصولها للناس.",
+                "مو ناقصنا مولّد نصوص جديد؛ الناقص أداة تعرف الفرق بين «كلام مرتب» و«فكرة وصلت».\n\nتكتب اللي في بالك كما هو، والتطبيق يتعامل معه كمسودة حقيقية: يفهم المقصد، يوسع النقاط الناقصة، ويربط التفاصيل ببعضها، ثم يعطيك نصاً جاهزاً للتحرير. ما فيه نشر إجباري ولا نسخ ولصق كأنك تتعامل مع روبوت.\n\nالفكرة ببساطة: أنت تعطيه الشرارة، وهو يبني حولها النص."
+            ]
+            text = variants[abs(variant) % variants.count]
         } else {
-            hook = "في فكرتك زاوية أقوى من مجرد وصفها حرفياً."
-            middle = "بدل إعادة نفس الجملة، نقدر نبني حولها معنى: لماذا تهم؟ ما التغيير الذي تعد به؟ وما الشيء الذي يفهمه القارئ بعد ثوانٍ؟ الصياغة الأقوى تأخذ فكرتك كما هي، ثم تستنبط منها السبب، الفائدة، والصورة التي تستحق أن تبقى في ذهن القارئ."
-            close = "الفكرة: \(clean)\nالهدف: نخليها مفهومة، لها شخصية، وتوصل بدون حشو."
+            text = generalCopy(from: clean, variant: variant)
         }
 
-        let base: String
-        switch type {
-        case "thread":
-            base = "1/ \(hook)\n\n2/ \(middle)\n\n3/ \(close)"
-        case "caption":
-            base = "\(hook)\n\n\(middle)\n\n\(close)"
-        case "linkedin":
-            base = "\(hook)\n\nأكثر شيء مهم في \(clean) هو الانتقال من الفكرة الخام إلى قيمة واضحة للمستخدم.\n\n\(middle)\n\n\(close)"
-        case "ad":
-            base = "\(hook)\n\n\(middle)\n\n\(close)"
-        default:
-            base = "\(hook)\n\n\(middle)\n\n\(close)"
+        if type == "thread" {
+            let parts = text.components(separatedBy: "\n\n")
+            return parts.enumerated().map { "\($0.offset + 1)/ \($0.element)" }.joined(separator: "\n\n")
         }
+        if type == "linkedin" {
+            return text + "\n\nوش أكثر شيء تشوفه يصنع الفرق هنا؟"
+        }
+        if type == "caption" || type == "ad" || type == "tweets" {
+            return text
+        }
+        return text
+    }
 
-        if dialect == "msa" {
-            return base.replacingOccurrences(of: "مو ", with: "ليس كل ").replacingOccurrences(of: "وش ", with: "ما ")
-        }
-        return base
+    private static func offerCopy(from input: String, variant: Int) -> String {
+        let lower = input.lowercased()
+        let hasSidr = lower.contains("سدر")
+        let hasHoney = lower.contains("عسل")
+        let hasGift = lower.contains("هدية") || lower.contains("للوالد") || lower.contains("للوالدة")
+        let hasMorning = lower.contains("الصباح") || lower.contains("دوام")
+        let freeDelivery = lower.contains("التوصيل") && lower.contains("مجاني")
+
+        let product = hasHoney ? (hasSidr ? "عسل سدر" : "العسل") : "المنتج"
+        let price = firstMatch(in: input, pattern: #"\d+(?:[\.,]\d+)?\s*(?:ريال|ر\.س)"#)
+        let quantity = firstMatch(in: input, pattern: #"(?:العلبة\s*)?(?:كيلو|\d+(?:[\.,]\d+)?\s*(?:كيلو|كجم|جرام))"#)
+
+        let priceLine: String = {
+            if let price, let quantity { return "\(product)، \(quantity) بـ \(price)." }
+            if let price { return "\(product) بـ \(price)." }
+            if let quantity { return "\(product)، \(quantity)." }
+            return product + "."
+        }()
+
+        let useLine: String = {
+            if hasGift && hasMorning { return "خذه هدية للوالد، أو خلّه لك مع صباحات الدوام اللي تحب تبدأها بشيء بسيط ومألوف." }
+            if hasGift { return "ينفع هدية جميلة بدون تكلف، وينفع يكون من الأشياء اللي تبقى في البيت ويُرجع لها كل يوم." }
+            if hasMorning { return "خلّه جزء من صباحك بدل ما تبدأ يومك على عجلة." }
+            return "شيء بسيط، واضح، وتعرف بالضبط وش تاخذ مقابله."
+        }()
+
+        let deliveryLine = freeDelivery ? "والتوصيل اليوم علينا — مجاناً لكل المدن." : "اطلبه بالطريقة المناسبة لك ونرتب لك الباقي."
+
+        let variants = [
+            "فيه هدايا تنحط على الرف… وفيه هدايا تدخل في يوم الشخص نفسه.\n\n\(priceLine) \(useLine)\n\n\(deliveryLine)\n\nإذا ودك بعلبة، أرسل مدينتك ونرتبها لك.",
+            "مو لازم العرض يصرخ عشان يكون مغري. يكفي يكون واضح ويستاهل.\n\n\(priceLine) \(useLine)\n\n\(deliveryLine)\n\nخذها لك أو خلّها هدية لشخص عزيز عليك.",
+            "صباح أهدأ، وهدية لها معنى، وطلب ما يحتاج تعقيد.\n\n\(priceLine)\n\n\(useLine)\n\n\(deliveryLine)\n\nللطلب: أرسل مدينتك وخل الباقي علينا."
+        ]
+        return variants[abs(variant) % variants.count]
+    }
+
+    private static func generalCopy(from input: String, variant: Int) -> String {
+        let variants = [
+            "خلّنا نقولها بطريقة أوضح: \(input)\n\nالمهم هنا مو تكرار الفكرة، بل إبراز الشيء اللي يخليها تستحق الانتباه: وش يتغير للناس بسببها؟ وليش يهتمون من الأساس؟\n\nإذا ظهرت هالنقطتين في النص، يصير الكلام أقرب لفكرة حقيقية وأبعد عن وصف عام.",
+            "\(input)\n\nالفكرة فيها أكثر من مجرد الجملة نفسها. فيها وعد ضمني بشيء أسهل أو أفضل أو أوضح. النص الجيد يطلع هذا الوعد للواجهة، ثم يخلي التفاصيل تثبته بدل ما تزاحمه.\n\nابدأ بالمعنى، وبعدها خل كل جملة تخدمه.",
+            "أقوى زاوية هنا مو «وش هي الفكرة؟» بل «ليش تهم؟».\n\n\(input)\n\nلما نبني النص حول السبب والنتيجة والتجربة اللي يعيشها الشخص، تصير الفكرة مفهومة من أول قراءة وتطلع لها شخصية بدل ما تكون مجرد شرح."
+        ]
+        return variants[abs(variant) % variants.count]
+    }
+
+    private static func firstMatch(in text: String, pattern: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
+        let ns = text as NSString
+        let range = NSRange(location: 0, length: ns.length)
+        guard let match = regex.firstMatch(in: text, range: range) else { return nil }
+        return ns.substring(with: match.range).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func shouldReplace(_ text: String, provider: String, topic: String) -> Bool {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if t.count < 90 { return true }
+        if t.count < 120 { return true }
         let p = provider.lowercased()
-        if p.contains("fallback") || p.contains("local") { return true }
-        let weak = ["الفكرة بسيطة", "مشكلة واضحة", "جربها بهذه الصيغة", "حل مباشر", "دعوة بسيطة للتفاعل"]
+        if p.contains("fallback") || p.contains("local") || p.contains("sard creative") { return true }
+        let weak = ["الفكرة بسيطة", "مشكلة واضحة", "جربها بهذه الصيغة", "حل مباشر", "دعوة بسيطة للتفاعل", "في فكرتك زاوية أقوى", "الهدف: نخليها مفهومة"]
         if weak.contains(where: { t.contains($0) }) { return true }
         let normalizedTopic = topic.trimmingCharacters(in: .whitespacesAndNewlines)
         if !normalizedTopic.isEmpty && t.components(separatedBy: normalizedTopic).count > 2 { return true }
@@ -85,10 +124,21 @@ final class StudioViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var history: [HistoryItem] = []
     @Published var serverURL = UserDefaults.standard.string(forKey: "serverURL") ?? ""
+    private var variant = 0
 
     init() { loadHistory() }
 
     func generate() async {
+        variant = 0
+        await runGeneration()
+    }
+
+    func regenerate() async {
+        variant += 1
+        await runGeneration()
+    }
+
+    private func runGeneration() async {
         let cleanTopic = topic.trimmingCharacters(in: .whitespacesAndNewlines)
         guard cleanTopic.count >= 3 else { return }
         isLoading = true
@@ -102,15 +152,15 @@ final class StudioViewModel: ObservableObject {
             let serverText = r.text ?? ""
             let serverProvider = r.provider ?? "AI"
             if CreativeWriter.shouldReplace(serverText, provider: serverProvider, topic: cleanTopic) {
-                result = CreativeWriter.compose(topic: cleanTopic, type: contentType, dialect: dialect, tone: tone)
-                provider = "Sard Creative"
+                result = CreativeWriter.compose(topic: cleanTopic, type: contentType, dialect: dialect, tone: tone, variant: variant)
+                provider = "Sard Creative 2"
             } else {
                 result = serverText
                 provider = serverProvider
             }
         } catch {
-            result = CreativeWriter.compose(topic: cleanTopic, type: contentType, dialect: dialect, tone: tone)
-            provider = "Sard Creative"
+            result = CreativeWriter.compose(topic: cleanTopic, type: contentType, dialect: dialect, tone: tone, variant: variant)
+            provider = "Sard Creative 2"
         }
 
         if !result.isEmpty {
@@ -121,7 +171,6 @@ final class StudioViewModel: ObservableObject {
         isLoading = false
     }
 
-    func regenerate() async { await generate() }
     func saveServerURL() { UserDefaults.standard.set(serverURL, forKey: "serverURL") }
     func clearHistory() { history = []; saveHistory() }
 

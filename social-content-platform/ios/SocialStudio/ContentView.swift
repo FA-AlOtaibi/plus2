@@ -121,8 +121,7 @@ struct ContentView: View {
                 HStack(spacing: 10) {
                     if vm.isLoading { ProgressView().tint(.white) }
                     Image(systemName: "sparkles")
-                    Text(vm.isLoading ? "جالس أصيغها…" : "اسردها")
-                        .fontWeight(.bold)
+                    Text(vm.isLoading ? "جالس أصيغها…" : "اسردها").fontWeight(.bold)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 15)
@@ -138,46 +137,43 @@ struct ContentView: View {
     }
 
     private var controls: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 8) {
-                menuChip(title: contentLabel, icon: "doc.text", menu: {
-                    Button("تغريدة") { vm.contentType = "tweets" }
-                    Button("ثريد") { vm.contentType = "thread" }
-                    Button("كابشن") { vm.contentType = "caption" }
-                    Button("لينكدإن") { vm.contentType = "linkedin" }
-                    Button("إعلان") { vm.contentType = "ad" }
-                })
-                menuChip(title: dialectLabel, icon: "quote.bubble", menu: {
-                    Button("خليجية") { vm.dialect = "gulf" }
-                    Button("فصحى") { vm.dialect = "msa" }
-                    Button("مصرية") { vm.dialect = "egyptian" }
-                    Button("شامية") { vm.dialect = "levantine" }
-                })
-                menuChip(title: toneLabel, icon: "waveform", menu: {
-                    Button("ودودة") { vm.tone = "friendly" }
-                    Button("رسمية") { vm.tone = "formal" }
-                    Button("جريئة") { vm.tone = "bold" }
-                    Button("فكاهية") { vm.tone = "funny" }
-                    Button("ملهمة") { vm.tone = "inspiring" }
-                })
-            }
+        HStack(spacing: 8) {
+            Menu {
+                Button("تغريدة") { vm.contentType = "tweets" }
+                Button("ثريد") { vm.contentType = "thread" }
+                Button("كابشن") { vm.contentType = "caption" }
+                Button("لينكدإن") { vm.contentType = "linkedin" }
+                Button("إعلان") { vm.contentType = "ad" }
+            } label: { chip(contentLabel, icon: "doc.text") }
+
+            Menu {
+                Button("خليجية") { vm.dialect = "gulf" }
+                Button("فصحى") { vm.dialect = "msa" }
+                Button("مصرية") { vm.dialect = "egyptian" }
+                Button("شامية") { vm.dialect = "levantine" }
+            } label: { chip(dialectLabel, icon: "quote.bubble") }
+
+            Menu {
+                Button("ودودة") { vm.tone = "friendly" }
+                Button("رسمية") { vm.tone = "formal" }
+                Button("جريئة") { vm.tone = "bold" }
+                Button("فكاهية") { vm.tone = "funny" }
+                Button("ملهمة") { vm.tone = "inspiring" }
+            } label: { chip(toneLabel, icon: "waveform") }
         }
     }
 
-    private func menuChip(title: String, icon: String, @ViewBuilder menu: () -> some View) -> some View {
-        Menu(content: menu) {
-            HStack(spacing: 6) {
-                Image(systemName: icon).font(.caption)
-                Text(title).font(.caption.bold()).lineLimit(1)
-                Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
-            }
-            .foregroundStyle(ink)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
-            .background(Color.white.opacity(0.82), in: Capsule())
-            .overlay(Capsule().stroke(Color.black.opacity(0.06)))
+    private func chip(_ title: String, icon: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon).font(.caption2)
+            Text(title).font(.caption.bold()).lineLimit(1)
+            Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
         }
+        .foregroundStyle(ink)
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 9)
+        .background(Color.white.opacity(0.82), in: Capsule())
+        .overlay(Capsule().stroke(Color.black.opacity(0.06)))
     }
 
     private var resultCard: some View {
@@ -186,40 +182,28 @@ struct ContentView: View {
                 Text("النص").font(.headline)
                 Text("02").font(.caption2.bold()).foregroundStyle(accent)
                 Spacer()
-                if !vm.result.isEmpty {
-                    Text(vm.provider).font(.caption2).foregroundStyle(.secondary)
-                }
+                if !vm.result.isEmpty { Text(vm.provider).font(.caption2).foregroundStyle(.secondary) }
             }
 
-            if !vm.error.isEmpty {
-                Text(vm.error).foregroundStyle(.red).frame(maxWidth: .infinity, alignment: .trailing)
-            }
+            if !vm.error.isEmpty { Text(vm.error).foregroundStyle(.red).frame(maxWidth: .infinity, alignment: .trailing) }
 
             if !vm.result.isEmpty {
                 TextEditor(text: $vm.result)
                     .scrollContentBackground(.hidden)
-                    .font(.system(size: 19, weight: .regular))
+                    .font(.system(size: 19))
                     .lineSpacing(7)
                     .frame(minHeight: 260)
                     .padding(12)
                     .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 18))
                     .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.black.opacity(0.06)))
 
-                HStack(spacing: 10) {
-                    Button { UIPasteboard.general.string = vm.result } label: {
-                        Label("نسخ", systemImage: "doc.on.doc")
-                    }
-                    .buttonStyle(ActionPillStyle(background: Color.white, foreground: ink))
-
-                    Button { Task { await vm.regenerate() } } label: {
-                        Label("صياغة ثانية", systemImage: "arrow.triangle.2.circlepath")
-                    }
-                    .buttonStyle(ActionPillStyle(background: Color.white, foreground: ink))
-
-                    Button { showPublishMenu = true } label: {
-                        Label("نشر", systemImage: "paperplane.fill")
-                    }
-                    .buttonStyle(ActionPillStyle(background: accent, foreground: .white))
+                HStack(spacing: 9) {
+                    Button { UIPasteboard.general.string = vm.result } label: { Label("نسخ", systemImage: "doc.on.doc") }
+                        .buttonStyle(ActionPillStyle(background: .white, foreground: ink, borderOpacity: 0.06))
+                    Button { Task { await vm.regenerate() } } label: { Label("صياغة ثانية", systemImage: "arrow.triangle.2.circlepath") }
+                        .buttonStyle(ActionPillStyle(background: .white, foreground: ink, borderOpacity: 0.06))
+                    Button { showPublishMenu = true } label: { Label("نشر", systemImage: "paperplane.fill") }
+                        .buttonStyle(ActionPillStyle(background: accent, foreground: .white, borderOpacity: 0))
                 }
             }
         }
@@ -228,15 +212,9 @@ struct ContentView: View {
         .overlay(RoundedRectangle(cornerRadius: 26).stroke(moss.opacity(0.12)))
     }
 
-    private var contentLabel: String {
-        ["tweets":"تغريدة","thread":"ثريد","caption":"كابشن","linkedin":"لينكدإن","ad":"إعلان"][vm.contentType] ?? "تغريدة"
-    }
-    private var dialectLabel: String {
-        ["gulf":"خليجية","msa":"فصحى","egyptian":"مصرية","levantine":"شامية"][vm.dialect] ?? "خليجية"
-    }
-    private var toneLabel: String {
-        ["friendly":"ودودة","formal":"رسمية","bold":"جريئة","funny":"فكاهية","inspiring":"ملهمة"][vm.tone] ?? "ودودة"
-    }
+    private var contentLabel: String { ["tweets":"تغريدة","thread":"ثريد","caption":"كابشن","linkedin":"لينكدإن","ad":"إعلان"][vm.contentType] ?? "تغريدة" }
+    private var dialectLabel: String { ["gulf":"خليجية","msa":"فصحى","egyptian":"مصرية","levantine":"شامية"][vm.dialect] ?? "خليجية" }
+    private var toneLabel: String { ["friendly":"ودودة","formal":"رسمية","bold":"جريئة","funny":"فكاهية","inspiring":"ملهمة"][vm.tone] ?? "ودودة" }
 
     private func publish(to target: String) {
         let encoded = vm.result.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
@@ -244,14 +222,11 @@ struct ContentView: View {
         let fallback: String
         switch target {
         case "whatsapp":
-            primary = "whatsapp://send?text=\(encoded)"
-            fallback = "https://wa.me/?text=\(encoded)"
+            primary = "whatsapp://send?text=\(encoded)"; fallback = "https://wa.me/?text=\(encoded)"
         case "telegram":
-            primary = "tg://msg?text=\(encoded)"
-            fallback = "https://t.me/share/url?url=&text=\(encoded)"
+            primary = "tg://msg?text=\(encoded)"; fallback = "https://t.me/share/url?url=&text=\(encoded)"
         default:
-            primary = "twitter://post?message=\(encoded)"
-            fallback = "https://twitter.com/intent/tweet?text=\(encoded)"
+            primary = "twitter://post?message=\(encoded)"; fallback = "https://twitter.com/intent/tweet?text=\(encoded)"
         }
         guard let url = URL(string: primary) else { showShare = true; return }
         UIApplication.shared.open(url, options: [:]) { opened in
@@ -263,13 +238,14 @@ struct ContentView: View {
 private struct ActionPillStyle: ButtonStyle {
     let background: Color
     let foreground: Color
+    let borderOpacity: Double
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.caption.bold())
             .foregroundStyle(foreground)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 11)
             .padding(.vertical, 10)
-            .background(background.opacity(configuration.isPressed ? 0.7 : 1), in: Capsule())
-            .overlay(Capsule().stroke(Color.black.opacity(background == Color.white ? 0.06 : 0)))
+            .background(background.opacity(configuration.isPressed ? 0.72 : 1), in: Capsule())
+            .overlay(Capsule().stroke(Color.black.opacity(borderOpacity)))
     }
 }

@@ -14,7 +14,8 @@ final class StudioViewModel: ObservableObject {
     @Published var brand = ""
     @Published var contentType = "tweets"
     @Published var dialect = "gulf"
-    @Published var tone = "friendly"
+    @Published var tone = "custom"
+    @Published var styleGuide = UserDefaults.standard.string(forKey: "styleGuide") ?? ""
     @Published var result = ""
     @Published var provider = ""
     @Published var error = ""
@@ -45,17 +46,30 @@ final class StudioViewModel: ObservableObject {
 
     private func runGeneration(isRegeneration: Bool) async {
         let cleanTopic = topic.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanStyle = styleGuide.trimmingCharacters(in: .whitespacesAndNewlines)
         isLoading = true
         error = ""
 
         let previous = Array(sessionDrafts.suffix(8))
         let memory = previous.isEmpty ? "" : """
-نصوص سابقة ممنوع تكرار فكرتها أو افتتاحيتها أو ترتيبها أو CTA الخاص بها:
+هذه نصوص خرجت سابقاً لنفس الفكرة. لا تكرر افتتاحيتها أو ترتيبها أو جملها أو خاتمتها:
 \(previous.enumerated().map { "[\($0.offset + 1)] \($0.element)" }.joined(separator: "\n---\n"))
 """
+
+        let styleInstruction = cleanStyle.isEmpty
+            ? "اكتب بأسلوب طبيعي جداً، واضح، قصير، وكأنه من شخص حقيقي. لا تتفلسف ولا تضف قصة من عندك."
+            : "أسلوب الكتابة الذي طلبه المستخدم حرفياً، وهو أولوية عالية: \(cleanStyle)"
+
         let instruction = """
-تعامل مع الفكرة كمدير إبداعي، لا كأداة إعادة صياغة. استنبط الجمهور والمناسبة والدافع والاستخدام والشعور والقيمة، ثم ابنِ نصاً جديداً من الصفر. لا تضف حقائق أو أرقاماً غير موجودة.
-\(isRegeneration ? "هذه إعادة توليد: غيّر الزاوية والبناء والافتتاحية والنهاية جذرياً." : "هذه أول محاولة: اختر أقوى زاوية بشرية وغير متوقعة.")
+\(styleInstruction)
+
+تعليمات جودة ثابتة:
+- حافظ على الحقائق الموجودة في الفكرة كما هي، ولا تضف فائدة أو تجربة أو قصة أو صفة غير مذكورة.
+- مسموح لك أن تحسن الترتيب والافتتاحية والإيقاع والوضوح فقط، ما لم يطلب المستخدم صراحة الاستنباط أو السرد أو الابتكار في خانة الأسلوب.
+- لا تستخدم جمل شاعرية أو عاطفية من عندك إلا إذا طلبها المستخدم في أسلوبه.
+- لا تجعل النص يبدو كإعلان مولد بالذكاء الاصطناعي.
+- إذا كانت الصيغة تغريدة، اكتب نصاً واحداً صالحاً للنشر ومركزاً.
+\(isRegeneration ? "هذه صياغة جديدة: غير المدخل والبناء فعلاً مع الالتزام بنفس أسلوب المستخدم." : "هذه أول صياغة.")
 \(memory)
 \(brand)
 """
@@ -64,15 +78,21 @@ final class StudioViewModel: ObservableObject {
             let response: GenerateResponse
             let directKey = hfToken.trimmingCharacters(in: .whitespacesAndNewlines)
             if !directKey.isEmpty {
-                response = try await generateDistinctHF(key: directKey, topic: cleanTopic, instruction: instruction, previous: previous)
+                response = try await generateDistinctHF(
+                    key: directKey,
+                    topic: cleanTopic,
+                    instruction: instruction,
+                    previous: previous,
+                    style: cleanStyle
+                )
             } else {
                 let serverResponse = try await APIClient.shared.generate(
-                    .init(topic: cleanTopic, brand: instruction, contentType: contentType, dialect: dialect, tone: tone),
+                    .init(topic: cleanTopic, brand: instruction, contentType: contentType, dialect: dialect, tone: "custom"),
                     customBaseURL: serverURL
                 )
                 let source = (serverResponse.provider ?? "").lowercased()
                 if source.contains("grounded") || source.contains("fallback") || source.contains("local") || source.contains("creative") {
-                    throw APIError.server("الخادم ما زال يستخدم المحرك الاحتياطي. افتح الإعدادات وأدخل HF Token ليستخدم Qwen مباشرة.")
+                    throw APIError.server("الخادم يستخدم محركاً احتياطياً. أدخل HF Token من الإعدادات لاستخدام النموذج الحقيقي.")
                 }
                 response = serverResponse
             }
@@ -93,24 +113,25 @@ final class StudioViewModel: ObservableObject {
         isLoading = false
     }
 
-    private func generateDistinctHF(key: String, topic: String, instruction: String, previous: [String]) async throws -> GenerateResponse {
+    private func generateDistinctHF(key: String, topic: String, instruction: String, previous: [String], style: String) async throws -> GenerateResponse {
         var last: GenerateResponse?
         var extra = ""
         for attempt in 0..<3 {
+            let requestedStyle = style.isEmpty ? "طبيعي، واضح، بشري، بدون مبالغة" : style
             let r = try await APIClient.shared.generateWithHuggingFace(
                 token: key,
                 topic: topic,
                 instruction: instruction,
                 contentType: contentType,
                 dialect: dialect,
-                tone: tone,
+                tone: requestedStyle,
                 extraAvoidance: extra
             )
             last = r
             let candidate = r.text ?? ""
             let maxSimilarity = previous.map { similarity(candidate, $0) }.max() ?? 0
-            if previous.isEmpty || maxSimilarity < 0.48 { return r }
-            extra = "المحاولة السابقة تشبه نصاً سابقاً. في المحاولة رقم \(attempt + 2) غيّر الفكرة الكتابية نفسها، لا المرادفات فقط: Hook آخر، مشهد آخر، دافع آخر، وبنية وخاتمة مختلفتان تماماً."
+            if previous.isEmpty || maxSimilarity < 0.44 { return r }
+            extra = "الصياغة قريبة من نص سابق. أعد الكتابة من مدخل مختلف تماماً، لكن لا تغير الحقائق ولا تخالف أسلوب المستخدم. هذه محاولة رقم \(attempt + 2)."
         }
         return last ?? GenerateResponse(text: nil, provider: nil, error: "تعذر التوليد")
     }
@@ -138,6 +159,7 @@ final class StudioViewModel: ObservableObject {
 
     func saveSettings() {
         UserDefaults.standard.set(serverURL, forKey: "serverURL")
+        UserDefaults.standard.set(styleGuide, forKey: "styleGuide")
         SecureStore.saveHFToken(hfToken)
         hfToken = SecureStore.loadHFToken()
     }

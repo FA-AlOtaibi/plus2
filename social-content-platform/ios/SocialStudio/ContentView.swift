@@ -56,7 +56,7 @@ struct ContentView: View {
             }
             ZStack {
                 RoundedRectangle(cornerRadius: 13).fill(ink)
-                Text("س").font(.title2.black()).foregroundStyle(paper)
+                Text("س").font(.system(size: 22, weight: .black, design: .rounded)).foregroundStyle(paper)
             }.frame(width: 46, height: 46)
         }
         .foregroundStyle(ink)

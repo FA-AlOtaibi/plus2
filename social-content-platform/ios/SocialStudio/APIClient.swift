@@ -72,10 +72,10 @@ actor APIClient {
         guard let http = response as? HTTPURLResponse else { throw APIError.badResponse }
         guard let decoded = try? JSONDecoder().decode(GenerateResponse.self, from: data) else {
             let raw = String(data: data, encoding: .utf8) ?? ""
-            throw APIError.server(raw.isEmpty ? "تعذر قراءة استجابة محرك الذكاء الاصطناعي." : raw)
+            throw APIError.server(friendlyError(raw))
         }
         guard (200..<300).contains(http.statusCode) else {
-            throw APIError.server(decoded.error ?? "تعذر التوليد من الخادم.")
+            throw APIError.server(friendlyError(decoded.error ?? "تعذر التوليد من الخادم."))
         }
         return decoded
     }
@@ -173,13 +173,31 @@ actor APIClient {
         guard let http = response as? HTTPURLResponse else { throw APIError.badResponse }
         guard let decoded = try? JSONDecoder().decode(HFResponse.self, from: data) else {
             let raw = String(data: data, encoding: .utf8) ?? ""
-            throw APIError.server(raw.isEmpty ? "تعذر قراءة استجابة Hugging Face." : raw)
+            throw APIError.server(friendlyError(raw))
         }
         guard (200..<300).contains(http.statusCode) else {
-            throw APIError.server(decoded.error?.message ?? "Hugging Face رفض الطلب (\(http.statusCode)).")
+            throw APIError.server(friendlyError(decoded.error?.message ?? "Hugging Face رفض الطلب (\(http.statusCode))."))
         }
         let text = decoded.choices?.first?.message.content?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !text.isEmpty else { throw APIError.server("النموذج رجع نتيجة فارغة.") }
         return GenerateResponse(text: text, provider: "QWEN3-HF", error: nil)
+    }
+
+    private func friendlyError(_ raw: String) -> String {
+        let lower = raw.lowercased()
+        if lower.contains("depleted your monthly included credits") || lower.contains("purchase pre-paid credits") {
+            return "انتهى رصيد Hugging Face لهذا الشهر. أضف رصيداً للحساب أو فعّل PRO، وبعدها التوليد يرجع يشتغل مباشرة."
+        }
+        if lower.contains("rate limit") || lower.contains("too many requests") {
+            return "الخدمة عليها ضغط حالياً. انتظر لحظات وجرب مرة ثانية."
+        }
+        if lower.contains("unauthorized") || lower.contains("invalid token") || lower.contains("401") {
+            return "توكن Hugging Face مرفوض. حدّث التوكن من الإعدادات ثم حاول مرة ثانية."
+        }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("{") || trimmed.hasPrefix("[") {
+            return "تعذر التوليد من مزود الذكاء الاصطناعي حالياً. جرّب مرة ثانية أو راجع إعدادات المزود."
+        }
+        return trimmed.isEmpty ? "تعذر التوليد حالياً." : trimmed
     }
 }

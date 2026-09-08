@@ -21,6 +21,7 @@ final class StudioViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var history: [HistoryItem] = []
     @Published var serverURL = UserDefaults.standard.string(forKey: "serverURL") ?? ""
+    @Published var hfToken = SecureStore.loadHFToken()
 
     private var sessionDrafts: [String] = []
     private var sessionTopic = ""
@@ -30,24 +31,15 @@ final class StudioViewModel: ObservableObject {
     func generate() async {
         let clean = topic.trimmingCharacters(in: .whitespacesAndNewlines)
         guard clean.count >= 3 else { return }
-        if clean != sessionTopic {
-            sessionTopic = clean
-            sessionDrafts = []
-        }
+        if clean != sessionTopic { sessionTopic = clean; sessionDrafts = [] }
         await runGeneration(isRegeneration: false)
     }
 
     func regenerate() async {
         let clean = topic.trimmingCharacters(in: .whitespacesAndNewlines)
         guard clean.count >= 3 else { return }
-        if clean != sessionTopic {
-            sessionTopic = clean
-            sessionDrafts = []
-        }
-        if !result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           !sessionDrafts.contains(result) {
-            sessionDrafts.append(result)
-        }
+        if clean != sessionTopic { sessionTopic = clean; sessionDrafts = [] }
+        if !result.isEmpty && !sessionDrafts.contains(result) { sessionDrafts.append(result) }
         await runGeneration(isRegeneration: true)
     }
 
@@ -56,63 +48,40 @@ final class StudioViewModel: ObservableObject {
         isLoading = true
         error = ""
 
-        let previous = Array(sessionDrafts.suffix(6))
-        let memoryBlock: String
-        if previous.isEmpty {
-            memoryBlock = ""
-        } else {
-            memoryBlock = """
-
-هذه صياغات سابقة ممنوع تكرارها أو تقليد بنائها أو افتتاحياتها أو CTA الخاص بها:
+        let previous = Array(sessionDrafts.suffix(8))
+        let memory = previous.isEmpty ? "" : """
+نصوص سابقة ممنوع تكرار فكرتها أو افتتاحيتها أو ترتيبها أو CTA الخاص بها:
 \(previous.enumerated().map { "[\($0.offset + 1)] \($0.element)" }.joined(separator: "\n---\n"))
-
-في هذه المحاولة اختر زاوية مختلفة جذرياً، وبناء مختلف، وافتتاحية مختلفة، وإيقاع مختلف. لا تستخدم إعادة صياغة سطحية.
 """
-        }
-
-        let intelligenceBrief = """
-أنت كاتب إبداعي عربي محترف جداً. لا تعِد كلام المستخدم ولا تشرح له فكرته. افهم المدخلات، استنبط منها الزوايا والقيمة والسياق والجمهور المحتمل، ثم اكتب نصاً يبدو من كاتب بشري ذكي.
-
-قواعد صارمة:
-- لا تخترع سعراً أو خصماً أو كمية أو وعداً أو معلومة واقعية غير موجودة.
-- مسموح بالاستنباط الإبداعي من المعلومات الموجودة: مناسبة، شعور، استخدام، زاوية تسويقية، مقارنة معنوية، قصة قصيرة، سؤال، مفارقة، Hook، CTA مناسب.
-- كل مرة يجب أن تكون الصياغة جديدة فعلاً، لا تبديل مرادفات.
-- تجنب القوالب المحفوظة مثل: «الفكرة بسيطة»، «المشكلة والحل»، «ثلاث أشياء»، «مو لازم العرض يصرخ» إلا إذا جاءت طبيعياً وكانت مختلفة عن السابق.
-- لا تقل للمستخدم ما الذي فعلته. أعطه النص النهائي فقط.
-- حافظ على اللهجة والنبرة والنوع المطلوب.
-- إذا كانت تغريدة فاجعلها مركزة وقابلة للنشر، لا مقالاً طويلاً.
-- إذا كان إعلاناً فليكن مقنعاً وذا CTA طبيعي غير مبتذل.
-- إذا كان ثريداً فاجعل كل جزء يضيف فكرة جديدة.
-- إذا كان LinkedIn فاجعله أعمق وأكثر مهنية.
-
-\(isRegeneration ? "هذه إعادة توليد: ابتعد قدر الإمكان عن أي صياغة سابقة." : "هذه أول صياغة: اختر أفضل زاوية من المدخلات نفسها.")
+        let instruction = """
+تعامل مع الفكرة كمدير إبداعي، لا كأداة إعادة صياغة. استنبط الجمهور والمناسبة والدافع والاستخدام والشعور والقيمة، ثم ابنِ نصاً جديداً من الصفر. لا تضف حقائق أو أرقاماً غير موجودة.
+\(isRegeneration ? "هذه إعادة توليد: غيّر الزاوية والبناء والافتتاحية والنهاية جذرياً." : "هذه أول محاولة: اختر أقوى زاوية بشرية وغير متوقعة.")
+\(memory)
+\(brand)
 """
-
-        let combinedBrand = [brand.trimmingCharacters(in: .whitespacesAndNewlines), intelligenceBrief, memoryBlock]
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n\n")
 
         do {
-            let response = try await APIClient.shared.generate(
-                .init(topic: cleanTopic, brand: combinedBrand, contentType: contentType, dialect: dialect, tone: tone),
-                customBaseURL: serverURL
-            )
+            let response: GenerateResponse
+            let directKey = hfToken.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !directKey.isEmpty {
+                response = try await generateDistinctHF(key: directKey, topic: cleanTopic, instruction: instruction, previous: previous)
+            } else {
+                let serverResponse = try await APIClient.shared.generate(
+                    .init(topic: cleanTopic, brand: instruction, contentType: contentType, dialect: dialect, tone: tone),
+                    customBaseURL: serverURL
+                )
+                let source = (serverResponse.provider ?? "").lowercased()
+                if source.contains("grounded") || source.contains("fallback") || source.contains("local") || source.contains("creative") {
+                    throw APIError.server("الخادم ما زال يستخدم المحرك الاحتياطي. افتح الإعدادات وأدخل HF Token ليستخدم Qwen مباشرة.")
+                }
+                response = serverResponse
+            }
 
             let text = (response.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            let source = (response.provider ?? "AI").trimmingCharacters(in: .whitespacesAndNewlines)
-            let sourceLower = source.lowercased()
-
-            guard !text.isEmpty else {
-                throw APIError.server("النموذج رجع نتيجة فارغة. حاول مرة ثانية.")
-            }
-            guard !sourceLower.contains("fallback") && !sourceLower.contains("local") && !sourceLower.contains("sard creative") else {
-                throw APIError.server("محرك الذكاء الاصطناعي الحقيقي غير متاح حالياً. تأكد من HF_TOKEN ثم حاول مرة أخرى.")
-            }
-
+            guard !text.isEmpty else { throw APIError.server("النموذج رجع نتيجة فارغة.") }
             result = text
-            provider = source
+            provider = response.provider ?? "AI"
             if !sessionDrafts.contains(text) { sessionDrafts.append(text) }
-
             history.insert(.init(id: UUID(), createdAt: Date(), topic: cleanTopic, text: text, type: contentType), at: 0)
             if history.count > 30 { history.removeLast(history.count - 30) }
             saveHistory()
@@ -121,23 +90,67 @@ final class StudioViewModel: ObservableObject {
             provider = ""
             self.error = error.localizedDescription
         }
-
         isLoading = false
     }
 
-    func saveServerURL() { UserDefaults.standard.set(serverURL, forKey: "serverURL") }
+    private func generateDistinctHF(key: String, topic: String, instruction: String, previous: [String]) async throws -> GenerateResponse {
+        var last: GenerateResponse?
+        var extra = ""
+        for attempt in 0..<3 {
+            let r = try await APIClient.shared.generateWithHuggingFace(
+                token: key,
+                topic: topic,
+                instruction: instruction,
+                contentType: contentType,
+                dialect: dialect,
+                tone: tone,
+                extraAvoidance: extra
+            )
+            last = r
+            let candidate = r.text ?? ""
+            let maxSimilarity = previous.map { similarity(candidate, $0) }.max() ?? 0
+            if previous.isEmpty || maxSimilarity < 0.48 { return r }
+            extra = "المحاولة السابقة تشبه نصاً سابقاً. في المحاولة رقم \(attempt + 2) غيّر الفكرة الكتابية نفسها، لا المرادفات فقط: Hook آخر، مشهد آخر، دافع آخر، وبنية وخاتمة مختلفتان تماماً."
+        }
+        return last ?? GenerateResponse(text: nil, provider: nil, error: "تعذر التوليد")
+    }
+
+    private func similarity(_ a: String, _ b: String) -> Double {
+        let wa = words(a), wb = words(b)
+        guard !wa.isEmpty, !wb.isEmpty else { return 0 }
+        let sa = Set(wa), sb = Set(wb)
+        let wordUnion = sa.union(sb).count
+        let wordScore = wordUnion == 0 ? 0 : Double(sa.intersection(sb).count) / Double(wordUnion)
+        let ba = Set(bigrams(wa)), bb = Set(bigrams(wb))
+        let biUnion = ba.union(bb).count
+        let biScore = biUnion == 0 ? 0 : Double(ba.intersection(bb).count) / Double(biUnion)
+        return wordScore * 0.45 + biScore * 0.55
+    }
+
+    private func words(_ text: String) -> [String] {
+        text.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).filter { $0.count > 1 }
+    }
+
+    private func bigrams(_ w: [String]) -> [String] {
+        guard w.count > 1 else { return [] }
+        return (0..<(w.count - 1)).map { w[$0] + "|" + w[$0 + 1] }
+    }
+
+    func saveSettings() {
+        UserDefaults.standard.set(serverURL, forKey: "serverURL")
+        SecureStore.saveHFToken(hfToken)
+        hfToken = SecureStore.loadHFToken()
+    }
+
+    func saveServerURL() { saveSettings() }
     func clearHistory() { history = []; saveHistory() }
 
     private func saveHistory() {
-        if let data = try? JSONEncoder().encode(history) {
-            UserDefaults.standard.set(data, forKey: "history")
-        }
+        if let data = try? JSONEncoder().encode(history) { UserDefaults.standard.set(data, forKey: "history") }
     }
 
     private func loadHistory() {
         if let data = UserDefaults.standard.data(forKey: "history"),
-           let items = try? JSONDecoder().decode([HistoryItem].self, from: data) {
-            history = items
-        }
+           let items = try? JSONDecoder().decode([HistoryItem].self, from: data) { history = items }
     }
 }

@@ -6,6 +6,13 @@ struct ContentView: View {
     @State private var showHistory = false
     @State private var showShare = false
     @State private var showPublishMenu = false
+
+    @State private var showTop = false
+    @State private var showMasthead = false
+    @State private var showEditor = false
+    @State private var bubbleFloat = false
+    @State private var thinkingIndex = 0
+
     @FocusState private var focused: Bool
 
     private let bg = Color(red: 0.965, green: 0.955, blue: 0.925)
@@ -16,16 +23,41 @@ struct ContentView: View {
         NavigationStack {
             ZStack {
                 bg.ignoresSafeArea()
+                ambientBubbles
+
                 ScrollView {
                     VStack(spacing: 22) {
                         topBar
+                            .entrance(showTop, y: -16, scale: 0.96)
+
                         masthead
+                            .entrance(showMasthead, y: 22, scale: 0.985)
+
                         editor
-                        if !vm.result.isEmpty || !vm.error.isEmpty { draft }
+                            .entrance(showEditor, y: 30, scale: 0.97)
+
+                        if vm.isLoading {
+                            thinkingBubble
+                                .transition(.asymmetric(
+                                    insertion: .scale(scale: 0.92, anchor: .top).combined(with: .opacity).combined(with: .move(edge: .top)),
+                                    removal: .scale(scale: 0.97).combined(with: .opacity)
+                                ))
+                        }
+
+                        if !vm.result.isEmpty || !vm.error.isEmpty {
+                            draft
+                                .transition(.asymmetric(
+                                    insertion: .scale(scale: 0.94, anchor: .top).combined(with: .opacity).combined(with: .move(edge: .top)),
+                                    removal: .opacity
+                                ))
+                        }
+
                         Spacer(minLength: 48)
                     }
                     .padding(.horizontal, 18)
                     .padding(.top, 8)
+                    .animation(.spring(response: 0.58, dampingFraction: 0.84), value: vm.isLoading)
+                    .animation(.spring(response: 0.62, dampingFraction: 0.82), value: vm.result)
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
@@ -43,6 +75,61 @@ struct ContentView: View {
         }
         .environment(\.layoutDirection, .rightToLeft)
         .tint(accent)
+        .onAppear { runEntranceSequence() }
+        .task(id: vm.isLoading) {
+            guard vm.isLoading else { return }
+            thinkingIndex = 0
+            while vm.isLoading {
+                try? await Task.sleep(nanoseconds: 1_050_000_000)
+                if vm.isLoading {
+                    withAnimation(.easeInOut(duration: 0.35)) {
+                        thinkingIndex = (thinkingIndex + 1) % thinkingMessages.count
+                    }
+                }
+            }
+        }
+    }
+
+    private var ambientBubbles: some View {
+        GeometryReader { proxy in
+            ZStack {
+                Circle()
+                    .fill(accent.opacity(0.055))
+                    .frame(width: 190, height: 190)
+                    .blur(radius: 2)
+                    .offset(x: bubbleFloat ? -55 : -82, y: bubbleFloat ? -250 : -215)
+
+                Circle()
+                    .fill(ink.opacity(0.035))
+                    .frame(width: 260, height: 260)
+                    .blur(radius: 3)
+                    .offset(x: bubbleFloat ? proxy.size.width * 0.48 : proxy.size.width * 0.56,
+                            y: bubbleFloat ? proxy.size.height * 0.34 : proxy.size.height * 0.29)
+
+                Circle()
+                    .fill(Color.white.opacity(0.40))
+                    .frame(width: 115, height: 115)
+                    .blur(radius: 1)
+                    .offset(x: bubbleFloat ? -120 : -92, y: proxy.size.height * 0.58)
+            }
+            .animation(.easeInOut(duration: 5.5).repeatForever(autoreverses: true), value: bubbleFloat)
+        }
+        .allowsHitTesting(false)
+        .ignoresSafeArea()
+    }
+
+    private func runEntranceSequence() {
+        guard !showTop else { return }
+        withAnimation(.spring(response: 0.52, dampingFraction: 0.78)) { showTop = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.11) {
+            withAnimation(.spring(response: 0.58, dampingFraction: 0.80)) { showMasthead = true }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
+            withAnimation(.spring(response: 0.64, dampingFraction: 0.82)) { showEditor = true }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.30) {
+            bubbleFloat = true
+        }
     }
 
     private var topBar: some View {
@@ -66,18 +153,19 @@ struct ContentView: View {
             .font(.system(size: 16, weight: .semibold))
             .foregroundStyle(ink)
             .frame(width: 42, height: 42)
-            .background(Color.white.opacity(0.64))
-            .clipShape(RoundedRectangle(cornerRadius: 11))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 11))
+            .overlay(RoundedRectangle(cornerRadius: 11).stroke(Color.black.opacity(0.035)))
     }
 
     private var masthead: some View {
         VStack(alignment: .leading, spacing: 12) {
             Rectangle().fill(ink).frame(height: 4)
+                .clipShape(Capsule())
             Text("ارمِ الفكرة.\nخلّنا نبني النص.")
                 .font(.system(size: 41, weight: .black, design: .rounded))
                 .minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text("ما نعيد كلامك بصياغة أفخم. نلتقط العرض، الفائدة، الزاوية، ونبني منها منشوراً له بداية ونهاية.")
+            Text("ما نعيد كلامك بصياغة أفخم. نفهم المقصد، نلتقط الزاوية، ونبني لك نصاً جديداً من الصفر.")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(.secondary)
                 .lineSpacing(5)
@@ -98,7 +186,7 @@ struct ContentView: View {
             .padding(.bottom, 12)
 
             ZStack(alignment: .topLeading) {
-                Color.white.opacity(0.78)
+                Color.white.opacity(0.80)
                 TextEditor(text: $vm.topic)
                     .focused($focused)
                     .scrollContentBackground(.hidden)
@@ -107,7 +195,7 @@ struct ContentView: View {
                     .padding(16)
                     .frame(minHeight: 220)
                 if vm.topic.isEmpty {
-                    Text("مثال: عسل سدر بـ150 ريال، العلبة كيلو، هدية للوالد أو للصباح، والتوصيل اليوم مجاني لكل المدن…")
+                    Text("مثال: عندي منتج جديد، سعره كذا، ميزته كذا، وأبي إعلان يخلي الناس تتحمس له بدون مبالغة…")
                         .font(.system(size: 18, weight: .regular))
                         .foregroundStyle(.secondary.opacity(0.72))
                         .padding(20)
@@ -115,6 +203,8 @@ struct ContentView: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.black.opacity(0.035)))
+            .shadow(color: .black.opacity(0.025), radius: 18, y: 8)
 
             HStack(spacing: 8) {
                 formatMenu
@@ -128,23 +218,80 @@ struct ContentView: View {
                 Task { await vm.generate() }
             } label: {
                 HStack(spacing: 9) {
-                    if vm.isLoading { ProgressView().tint(.white) }
-                    Text(vm.isLoading ? "نبني النص…" : "ابنِ النص")
+                    if vm.isLoading {
+                        ProgressView().tint(.white)
+                            .transition(.scale.combined(with: .opacity))
+                    }
+                    Text(vm.isLoading ? "نفكر في زاوية…" : "ابنِ النص")
                         .font(.system(size: 17, weight: .bold))
-                    Image(systemName: "arrow.left")
+                        .contentTransition(.opacity)
+                    Image(systemName: vm.isLoading ? "sparkles" : "arrow.left")
+                        .symbolEffect(.pulse, options: .repeating, isActive: vm.isLoading)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressScaleButtonStyle())
             .foregroundStyle(.white)
             .background(canGenerate ? ink : Color.gray.opacity(0.65), in: RoundedRectangle(cornerRadius: 16))
             .padding(.top, 12)
             .disabled(!canGenerate || vm.isLoading)
         }
         .padding(16)
-        .background(Color.white.opacity(0.30), in: RoundedRectangle(cornerRadius: 28))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28))
+        .overlay(RoundedRectangle(cornerRadius: 28).stroke(Color.white.opacity(0.50)))
     }
+
+    private var thinkingBubble: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(accent.opacity(0.12))
+                    .frame(width: 52, height: 52)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(accent)
+                    .symbolEffect(.pulse, options: .repeating)
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("سرد يفكر")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.secondary)
+
+                Text(thinkingMessages[thinkingIndex])
+                    .font(.system(size: 17, weight: .semibold))
+                    .contentTransition(.opacity)
+                    .id(thinkingIndex)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+
+            Spacer()
+
+            HStack(spacing: 5) {
+                ForEach(0..<3, id: \.self) { i in
+                    Circle()
+                        .fill(ink.opacity(0.65))
+                        .frame(width: 6, height: 6)
+                        .scaleEffect(thinkingIndex % 3 == i ? 1.45 : 0.75)
+                        .opacity(thinkingIndex % 3 == i ? 1 : 0.35)
+                        .animation(.easeInOut(duration: 0.35), value: thinkingIndex)
+                }
+            }
+        }
+        .padding(16)
+        .background(Color.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 24))
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.black.opacity(0.04)))
+        .shadow(color: .black.opacity(0.035), radius: 18, y: 10)
+    }
+
+    private let thinkingMessages = [
+        "نستخرج أقوى زاوية من فكرتك…",
+        "نبتعد عن الصياغات المتوقعة…",
+        "نبني افتتاحية تشد بدون مبالغة…",
+        "نراجع النبرة والإيقاع…",
+        "نختار نسخة تستحق النشر…"
+    ]
 
     private var canGenerate: Bool {
         vm.topic.trimmingCharacters(in: .whitespacesAndNewlines).count >= 3
@@ -188,7 +335,8 @@ struct ContentView: View {
         .foregroundStyle(ink)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10)
-        .background(Color.white.opacity(0.72), in: Capsule())
+        .background(Color.white.opacity(0.76), in: Capsule())
+        .overlay(Capsule().stroke(Color.black.opacity(0.035)))
     }
 
     private var draft: some View {
@@ -240,6 +388,7 @@ struct ContentView: View {
         .padding(18)
         .foregroundStyle(.white)
         .background(ink, in: RoundedRectangle(cornerRadius: 28))
+        .shadow(color: .black.opacity(0.10), radius: 24, y: 14)
     }
 
     private func actionButton(_ title: String, icon: String, filled: Bool, action: @escaping () -> Void) -> some View {
@@ -252,7 +401,7 @@ struct ContentView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 11)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressScaleButtonStyle())
         .foregroundStyle(filled ? Color.white : Color.white.opacity(0.92))
         .background(filled ? accent : Color.white.opacity(0.10), in: Capsule())
     }
@@ -282,5 +431,24 @@ struct ContentView: View {
                 UIApplication.shared.open(fallbackURL)
             }
         }
+    }
+}
+
+private struct PressScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.965 : 1)
+            .opacity(configuration.isPressed ? 0.90 : 1)
+            .animation(.spring(response: 0.22, dampingFraction: 0.78), value: configuration.isPressed)
+    }
+}
+
+private extension View {
+    func entrance(_ visible: Bool, y: CGFloat, scale: CGFloat) -> some View {
+        self
+            .opacity(visible ? 1 : 0)
+            .blur(radius: visible ? 0 : 7)
+            .scaleEffect(visible ? 1 : scale)
+            .offset(y: visible ? 0 : y)
     }
 }
